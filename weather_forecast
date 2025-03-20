@@ -1,0 +1,126 @@
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+
+# Set random seed for reproducibility
+np.random.seed(42)
+
+# Generate data for one year (daily measurements)
+n_days = 365
+
+def generate_seasonal_pattern(n_days):
+    """Generate seasonal pattern with peak in summer"""
+    return np.sin(np.linspace(0, 2*np.pi, n_days))
+
+def add_noise(base_signal, noise_level=0.1):
+    """Add random noise to a signal"""
+    return base_signal + np.random.normal(0, noise_level, len(base_signal))
+
+# Generate dates for one year
+base_date = datetime(2024, 1, 1)
+dates = [base_date + timedelta(days=x) for x in range(n_days)]
+
+# Generate seasonal base patterns
+seasonal_pattern = generate_seasonal_pattern(n_days)
+
+# 1. Temperature (°C)
+temp_base = 20 + 15 * seasonal_pattern  # Base temperature varying from 5°C to 35°C
+temperature = add_noise(temp_base, 2)
+temperature = np.clip(temperature, -5, 40)
+
+# 2. Humidity (%)
+# Humidity is inversely related to temperature
+humidity_base = 70 - 20 * seasonal_pattern
+humidity = add_noise(humidity_base, 5)
+humidity = np.clip(humidity, 30, 100)
+
+# 3. Rainfall (mm)
+# More rainfall in spring/fall, less in summer/winter
+rainfall_prob = np.random.random(n_days)
+rainfall = np.zeros(n_days)
+rainfall_pattern = -np.absolute(seasonal_pattern) + 1  # More rain in spring/fall
+rainfall[rainfall_prob < 0.3] = np.random.exponential(5, sum(rainfall_prob < 0.3)) * (rainfall_pattern[rainfall_prob < 0.3] + 0.5)
+rainfall = np.clip(rainfall, 0, 100)
+
+# 4. Wind Speed (m/s)
+wind_base = 5 + 2 * np.sin(np.linspace(0, 8*np.pi, n_days))  # Base wind pattern
+wind_speed = add_noise(wind_base, 1)
+wind_speed = np.clip(wind_speed, 0, 20)
+
+# 5. Soil Moisture (%)
+# Affected by rainfall and temperature
+soil_moisture_base = 30 + 0.3 * np.cumsum(rainfall) - 0.2 * temperature
+soil_moisture = add_noise(soil_moisture_base, 2)
+soil_moisture = np.clip(soil_moisture, 10, 100)
+# Reset cumulative effect periodically
+soil_moisture = soil_moisture - np.floor(np.linspace(0, 4, n_days)) * 20
+
+# 6. Solar Radiation (W/m²)
+solar_base = 500 + 300 * seasonal_pattern
+solar_radiation = add_noise(solar_base, 50)
+solar_radiation = np.clip(solar_radiation, 0, 1000)
+
+# 7. Evapotranspiration Rate (mm/day)
+# Affected by temperature, wind speed, and solar radiation
+evapotranspiration = (0.0023 * solar_radiation/50 + 0.1 * temperature + 0.2 * wind_speed)
+evapotranspiration = add_noise(evapotranspiration, 0.5)
+evapotranspiration = np.clip(evapotranspiration, 0, 15)
+
+# 8. Crop Growth Stage (0-5)
+# 0: Pre-planting, 1: Emergence, 2: Vegetative, 3: Flowering, 4: Yield Formation, 5: Maturity
+growth_days = np.linspace(0, 5, n_days)
+crop_growth_stage = np.floor(growth_days)
+# Reset for multiple growing seasons
+crop_growth_stage = crop_growth_stage % 6
+
+# 9. Cloud Cover (%)
+# Inversely related to solar radiation, correlated with rainfall
+cloud_cover_base = 100 - (solar_radiation/1000 * 100)
+cloud_cover = add_noise(cloud_cover_base, 10)
+cloud_cover = np.clip(cloud_cover, 0, 100)
+
+# 10. Dew Point (°C)
+# Calculate dew point using simplified formula
+dew_point = temperature - ((100 - humidity)/5)
+dew_point = np.clip(dew_point, -10, 30)
+
+# Create DataFrame
+data = {
+    'Date': dates,
+    'Temperature': np.round(temperature, 2),
+    'Humidity': np.round(humidity, 2),
+    'Rainfall': np.round(rainfall, 2),
+    'Wind_Speed': np.round(wind_speed, 2),
+    'Soil_Moisture': np.round(soil_moisture, 2),
+    'Solar_Radiation': np.round(solar_radiation, 2),
+    'Evapotranspiration': np.round(evapotranspiration, 2),
+    'Crop_Growth_Stage': crop_growth_stage.astype(int),
+    'Cloud_Cover': np.round(cloud_cover, 2),
+    'Dew_Point': np.round(dew_point, 2)
+}
+
+df = pd.DataFrame(data)
+
+# Add some derived features
+df['Month'] = df['Date'].dt.month
+df['Day'] = df['Date'].dt.day
+df['Season'] = pd.cut(df['Month'],
+                     bins=[0, 3, 6, 9, 12],
+                     labels=['Winter', 'Spring', 'Summer', 'Fall'])
+
+# Calculate growing degree days (GDD)
+df['GDD'] = np.maximum(0, (df['Temperature'] - 10))  # Base temperature of 10°C
+
+# Save the dataset
+df.to_csv('agricultural_weather_data.csv', index=False)
+
+# Display sample statistics
+print("\nDataset Preview:")
+print(df.head())
+print("\nDescriptive Statistics:")
+print(df.describe())
+
+# Calculate and display correlations
+correlations = df.select_dtypes(include=[np.number]).corr()
+print("\nKey Correlations:")
+print(correlations['Temperature'].sort_values(ascending=False))
