@@ -124,3 +124,147 @@ print(df.describe())
 correlations = df.select_dtypes(include=[np.number]).corr()
 print("\nKey Correlations:")
 print(correlations['Temperature'].sort_values(ascending=False))
+
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+
+# Set random seed for reproducibility
+np.random.seed(42)
+
+# Generate sample data (similar to previous dataset but adapted for classification)
+n_samples = 1000
+
+def generate_agricultural_data():
+    # Generate base features
+    temperature = np.random.normal(25, 5, n_samples)
+    humidity = np.random.normal(60, 15, n_samples)
+    rainfall = np.random.exponential(5, n_samples)
+    wind_speed = np.random.normal(8, 2, n_samples)
+    soil_moisture = np.random.normal(50, 10, n_samples)
+    solar_radiation = np.random.normal(500, 100, n_samples)
+    evapotranspiration = np.random.normal(5, 1, n_samples)
+    crop_growth_stage = np.random.randint(0, 6, n_samples)
+    cloud_cover = np.random.normal(50, 20, n_samples)
+    dew_point = np.random.normal(15, 3, n_samples)
+
+    # Clip values to realistic ranges
+    temperature = np.clip(temperature, 10, 40)
+    humidity = np.clip(humidity, 30, 100)
+    rainfall = np.clip(rainfall, 0, 50)
+    wind_speed = np.clip(wind_speed, 0, 20)
+    soil_moisture = np.clip(soil_moisture, 10, 90)
+    solar_radiation = np.clip(solar_radiation, 0, 1000)
+    evapotranspiration = np.clip(evapotranspiration, 0, 10)
+    cloud_cover = np.clip(cloud_cover, 0, 100)
+    dew_point = np.clip(dew_point, 5, 25)
+
+    # Calculate water demand (complex relationship)
+    water_demand = (
+        0.3 * temperature +
+        -0.2 * humidity +
+        -0.15 * rainfall +
+        0.1 * wind_speed +
+        -0.2 * soil_moisture +
+        0.15 * solar_radiation/100 +
+        0.2 * evapotranspiration +
+        0.1 * crop_growth_stage +
+        -0.05 * cloud_cover +
+        0.1 * dew_point
+    )
+
+    # Add some noise
+    water_demand += np.random.normal(0, 1, n_samples)
+
+    # Convert to binary classification (1 for high water demand, 0 for low)
+    water_demand_binary = (water_demand > np.median(water_demand)).astype(int)
+
+    return (temperature, humidity, rainfall, wind_speed, soil_moisture,
+            solar_radiation, evapotranspiration, crop_growth_stage,
+            cloud_cover, dew_point, water_demand_binary)
+
+# Generate data
+(temperature, humidity, rainfall, wind_speed, soil_moisture,
+ solar_radiation, evapotranspiration, crop_growth_stage,
+ cloud_cover, dew_point, water_demand) = generate_agricultural_data()
+
+# Create DataFrame
+data = pd.DataFrame({
+    'Temperature': temperature,
+    'Humidity': humidity,
+    'Rainfall': rainfall,
+    'Wind_Speed': wind_speed,
+    'Soil_Moisture': soil_moisture,
+    'Solar_Radiation': solar_radiation,
+    'Evapotranspiration': evapotranspiration,
+    'Crop_Growth_Stage': crop_growth_stage,
+    'Cloud_Cover': cloud_cover,
+    'Dew_Point': dew_point,
+    'High_Water_Demand': water_demand
+})
+
+# Save the dataset
+data.to_csv('agricultural_weather_classification.csv', index=False)
+
+# Prepare data for modeling
+X = data.drop('High_Water_Demand', axis=1)
+y = data['High_Water_Demand']
+
+# Split the data
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Scale the features
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# Train logistic regression model
+model = LogisticRegression(max_iter=1000)
+model.fit(X_train_scaled, y_train)
+
+# Make predictions
+y_pred = model.predict(X_test_scaled)
+
+# Print performance metrics
+print("\nModel Performance Metrics:")
+print("-------------------------")
+print(f"Accuracy: {accuracy_score(y_test, y_pred):.4f}")
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred))
+print("\nConfusion Matrix:")
+print(confusion_matrix(y_test, y_pred))
+
+# Feature importance
+feature_importance = pd.DataFrame({
+    'Feature': X.columns,
+    'Importance': np.abs(model.coef_[0])
+})
+print("\nFeature Importance:")
+print(feature_importance.sort_values('Importance', ascending=False))
+
+# Example prediction
+example_data = np.array([[
+    28,     # Temperature
+    65,     # Humidity
+    5,      # Rainfall
+    8,      # Wind Speed
+    45,     # Soil Moisture
+    600,    # Solar Radiation
+    4.5,    # Evapotranspiration
+    3,      # Crop Growth Stage
+    40,     # Cloud Cover
+    18      # Dew Point
+]])
+
+# Scale the example data
+example_scaled = scaler.transform(example_data)
+prediction = model.predict(example_scaled)
+prediction_prob = model.predict_proba(example_scaled)
+
+print("\nExample Prediction:")
+print("-----------------")
+print(f"Prediction: {'High' if prediction[0] == 1 else 'Low'} Water Demand")
+print(f"Probability of High Water Demand: {prediction_prob[0][1]:.2f}")
