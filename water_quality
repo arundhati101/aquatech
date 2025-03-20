@@ -91,3 +91,38 @@ def predict_water_quality(pH, turbidity, dissolved_oxygen, lead, tds, ec, temper
 print("\nSimulated Prediction:")
 # Example sensor readings
 predict_water_quality(7.2, 3.8, 5.5, 0.005, 300, 0.5, 25, 10, 0.8)
+
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
+
+# Assume a cost associated with treating unsafe water (e.g., 10 per unit)
+treatment_cost_per_unit = 0.03
+
+# Calculate the number of unsafe water units predicted by the model
+num_unsafe_predicted = np.sum(y_pred == 0)
+
+# Calculate the cost of treating these units
+total_treatment_cost = num_unsafe_predicted * treatment_cost_per_unit
+
+# Now assume a hypothetical scenario where you don't have the model and treat all water 
+# (Worst-case scenario)
+num_total_units = len(y_test)
+worst_case_treatment_cost = num_total_units * treatment_cost_per_unit
+
+# Calculate the cost reduction due to the model
+cost_reduction = worst_case_treatment_cost - total_treatment_cost
+
+# Calculate cost reduction percentage
+cost_reduction_percentage = (cost_reduction / worst_case_treatment_cost) * 100
+
+# Print results
+print("\nCost Reduction Analysis:")
+print("Number of unsafe water units predicted:", num_unsafe_predicted)
+print("Total treatment cost (with model): Rs.", total_treatment_cost)
+print("Worst-case treatment cost (without model): Rs.", worst_case_treatment_cost)
+print("Cost reduction due to the model: Rs.", cost_reduction)
+print("Cost reduction percentage: {:.2f}%".format(cost_reduction_percentage))
